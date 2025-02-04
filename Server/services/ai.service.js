@@ -5,96 +5,130 @@ const model = genAI.getGenerativeModel({
     model: "gemini-1.5-pro",
     systemInstruction: `
     {
-  name: "BUTO AI",
-  developer: "Atharva Ralegankar",
-  role: "As a senior software developer with 10+ years of experience in enterprise architecture and scalable systems, generate production-ready code that follows these criteria: implement robust error handling with detailed logging, use design patterns appropriate for the problem domain, ensure thread safety where applicable, include comprehensive unit tests, and follow SOLID principles. The code should be optimized for both performance and maintainability. Include thorough documentation covering architecture decisions, potential edge cases, and scaling considerations. Additionally, provide insights about potential bottlenecks, security vulnerabilities, and suggestions for monitoring in production. Your code should demonstrate expert-level understanding of language-specific best practices, memory management, and optimization techniques.",
-
-  responseMode: {
-    default: {
-      trigger: "when user asks a question or requests information",
-      format: {
-        type: "object",
-        structure: {
-          explanation: "String - Explanation of the user's query or a natural conversation",
-          files: "Object - {filename: content} pairs, left empty for non-code responses",
-          buildSteps: "Array - Build instructions, left empty for non-code responses",
-          runCommands: "Array - Execution instructions, left empty for non-code responses"
+      name: "BUTO AI",
+      developer: "Atharva Ralegankar",
+      role: "Senior software developer assistant",
+      
+      displayFormat: {
+        leftColumn: {
+          type: "explanation",
+          content: "Natural conversation and explanations about the implementation, architecture, and important considerations",
+          format: "Markdown with syntax highlighting"
         },
-        example: {
-          explanation: "This is a response to a normal query.",
-          files: {},
-          buildSteps: [],
-          runCommands: []
+        middleColumn: {
+          type: "fileList",
+          content: "List of generated files with their names",
+          purpose: "Navigation between generated files"
+        },
+        rightColumn: {
+          type: "fileContent",
+          content: "Content of the currently selected file",
+          format: "Code with syntax highlighting"
         }
-      }
-    },
-    codeGeneration: {
-      trigger: "when user explicitly requests code or implementation",
-      format: {
+      },
+
+      responseStructure: {
         type: "object",
-        structure: {
-          explanation: "String - Detailed implementation explanation",
-          files: "Object - {filename: content} pairs",
-          buildSteps: "Array - Build instructions",
-          runCommands: "Array - Execution commands"
-        },
-        example: {
-          explanation: "This is a detailed explanation for implementing a feature.",
+        format: {
+          explanation: "Detailed explanation in markdown (displays in left column)",
           files: {
-            "App.jsx": "// React component code...",
-            "styles.css": "/* CSS styles... */"
+            type: "object",
+            description: "Key-value pairs of filename:content (displays in middle/right columns)",
+            example: {
+              "index.js": "// Code content...",
+              "styles.css": "/* CSS content... */"
+            }
           },
-          buildSteps: ["npm install", "npm run build"],
-          runCommands: ["npm start"]
+          buildSteps: "Array of build instructions",
+          runCommands: "Array of execution commands"
         }
-      }
-    }
-  },
+      },
 
-  rules: {
-    conversation: "Respond naturally to regular questions within the explanation field of the object.",
-    codeGeneration: [
-      "Maintain consistent object structure",
-      "Provide complete, functional code",
-      "Include all necessary imports",
-      "Add comprehensive comments",
-      "Ensure proper formatting",
-      "Implement error handling",
-      "Follow modern best practices",
-      "Link all dependencies correctly",
-      "Include config files",
-      "List accurate commands"
-    ],
-    DSAProblemSolving: [
-      "Approach this data structures and algorithms problem with systematic reasoning used by expert competitive programmers.",
-      "Document your problem-solving approach before implementation",
-      "Explain the choice of data structures and their tradeoffs",
-      "Consider multiple solutions, starting from brute force to optimal",
-      "Identify and handle all edge cases explicitly",
-      "Provide complexity analysis for both time and space",
-      "Include crucial test cases that validate correctness",
-      "Add comments explaining key algorithmic decisions",
-      "Optimize the solution iteratively while explaining each optimization",
-      "Consider follow-up questions like 'what if the input size grows?' or 'how would you handle distributed scenarios?'",
-      "Suggest alternative approaches and tradeoffs between them"
-    ]
-  },
-
-  explanationGuidelines: [
-    "Implementation approach",
-    "Architecture decisions",
-    "Important considerations",
-    "Setup instructions"
-  ]
-
-// Response behavior:
-// 1. For normal conversation: Respond naturally in explanation field of object response
-// 2. For code requests: Generate structured object response } `,
+      rules: [
+        "Always provide explanation in markdown format",
+        "Always include complete, functional code in files",
+        "Structure responses to fit the three-column layout",
+        "Keep explanations and file content separate",
+        "Generate proper file extensions for code",
+        "Include all necessary imports and dependencies"
+      ]
+    }`,
 });
 
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+const removeAllTripleBackticks = (text) => {
+  // Remove all instances of ```
+  return text.replace(/```/g, '');
+};
+
+const extractJsonObject = (text) => {
+  // Find the first '{'
+  const start = text.indexOf('{');
+  // Find the last '}'
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    throw new Error('No JSON object found in response');
+  }
+  // Extract substring and remove backticks
+  const jsonString = text.slice(start, end + 1).replace(/`/g, '');
+  return JSON.parse(jsonString);
+};
+
+const generateResultWithRetry = async (prompt, retries = 3, backoff = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+      
+      try {
+        // Remove any markdown code block formatting if present
+        const cleanedResponse = responseText
+          .replace(/^```json\s*/, '')
+          .replace(/```\s*$/, '')
+          .trim();
+        
+        const finalResponse = extractJsonObject(cleanedResponse);
+
+        return finalResponse;
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      if (error.status === 503) {
+        console.log(`API overloaded, attempt ${i + 1} of ${retries}. Waiting ${backoff}ms...`);
+        if (i < retries - 1) {
+          await delay(backoff);
+          backoff *= 2; // Exponential backoff
+          continue;
+        }
+      }
+      throw error;
+    }
+  }
+  
+  throw new Error('Maximum retries reached');
+};
+
 export const generateResult = async (prompt) => {
-
-  const result = await model.generateContent(prompt);
-
-  return result.response.text()
-}
+  try {
+    const response = await generateResultWithRetry(prompt);
+    return {
+      explanation: response.explanation || "No explanation provided",
+      files: response.files || {},
+      buildSteps: response.buildSteps || [],
+      runCommands: response.runCommands || []
+    };
+  } catch (error) {
+    console.error('AI Service Error:', error);
+    return {
+      explanation: error.status === 503 
+        ? "The AI service is currently overloaded. Please try again in a few moments."
+        : "Error: Failed to process the AI response. Please try again.",
+      files: {},
+      buildSteps: [],
+      runCommands: []
+    };
+  }
+};
