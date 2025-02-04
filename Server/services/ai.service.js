@@ -4,7 +4,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY);
 const model = genAI.getGenerativeModel({ 
   //we are going to use gemini-2.0-flash-exp in hackathon 
   // for development purpose you can use gemini-1.5-pro model
-    model: "gemini-1.5-pro",
+    model: "gemini-2.0-flash-exp",
     systemInstruction: `
     You are BUTO AI, a professional software development assistant.
     ALL responses must be valid JSON objects following this exact structure:

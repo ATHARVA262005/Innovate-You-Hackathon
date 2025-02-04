@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from "mongoose";
 import projectModal from './models/project.model.js';
 import { generateResult } from './services/ai.service.js';
+import * as messageService from './services/message.service.js';
 
 const port = process.env.PORT || 3000;
 const server = http.createServer(app);
@@ -66,6 +67,20 @@ io.on('connection', socket => {
             try {
                 const prompt = message.replace("@ai", "").trim();
                 const result = await generateResult(prompt);
+
+                const filesArray = Object.entries(result.files || {}).map(([name, content]) => ({
+                    name,
+                    content
+                  }));
+
+                await messageService.saveMessage({
+                    projectId: socket.roomId,
+                    sender: "BUTO AI",
+                    message: result,
+                    files: result.files || {},
+                    buildSteps: result.buildSteps || [],
+                    runCommands: result.runCommands || []
+                  });
                 
                 // Ensure result is properly formatted before sending
                 const formattedResult = typeof result === 'string' ? 
@@ -84,6 +99,14 @@ io.on('connection', socket => {
                 });
             }
         } else {
+
+            await messageService.saveMessage({
+                projectId: socket.roomId,
+                sender: socket.user.email,
+                message: data.message
+              });
+
+
             // Handle regular messages
             socket.broadcast.to(socket.roomId).emit('project-message', {
                 message: data.message,

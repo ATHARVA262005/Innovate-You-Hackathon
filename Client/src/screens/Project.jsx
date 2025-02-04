@@ -4,7 +4,7 @@ import { FaUsers, FaTimes, FaArrowLeft, FaArrowDown } from 'react-icons/fa';
 import axios from '../config/axios';
 import { initializeSocket, receiveMessage, sendMessage } from '../config/socket';
 import { UserContext } from '../context/user.context';
-import { IoSend } from "react-icons/io5";
+import { IoSend, IoCodeOutline } from "react-icons/io5";
 import Markdown from 'markdown-to-jsx';
 
 function SyntaxHighlightedCode(props) {
@@ -33,6 +33,7 @@ const Project = () => {
   const [loading, setLoading] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
+  const [fileHistory, setFileHistory] = useState([]);
 
   const projectId = location.state.project._id;
   
@@ -110,33 +111,39 @@ const handleAIResponse = (data) => {
   try {
     const response = typeof data.message === 'string' ? JSON.parse(data.message) : data.message;
     
-    // Add explanation to chat
-    if (response.explanation) {
-      setMessages(prev => [...prev, {
-        sender: "BUTO AI",
-        message: (
-          <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
-            <Markdown
-              children={response.explanation}
-              options={{
-                overrides: {
-                  code: SyntaxHighlightedCode,
-                },
-              }}
-            />
-          </div>
-        ),
-        fromUser: false,
-        isAI: true,
-        timestamp: new Date().getTime()
-      }]);
+    // Create message object with files if present
+    const messageObj = {
+      sender: "BUTO AI",
+      message: (
+        <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
+          <Markdown
+            children={response.explanation}
+            options={{
+              overrides: {
+                code: SyntaxHighlightedCode,
+              },
+            }}
+          />
+        </div>
+      ),
+      fromUser: false,
+      isAI: true,
+      timestamp: new Date().getTime()
+    };
+
+    // Add files to message object if present
+    if (response.files && Object.keys(response.files).length > 0) {
+      messageObj.hasFiles = true;
+      messageObj.files = response.files;
+      messageObj.buildSteps = response.buildSteps || [];
+      messageObj.runCommands = response.runCommands || [];
     }
 
-    // Handle generated files
+    setMessages(prev => [...prev, messageObj]);
+
+    // If there are files, update the current view
     if (response.files && Object.keys(response.files).length > 0) {
       setGeneratedFiles(response.files);
-      
-      // Auto-select first file
       const firstFileName = Object.keys(response.files)[0];
       setSelectedFile({
         name: firstFileName,
@@ -196,6 +203,16 @@ const handleAIResponse = (data) => {
     }]);
   }
 };
+
+  const handleFileIconClick = (messageFiles) => {
+    setGeneratedFiles(messageFiles);
+    const firstFileName = Object.keys(messageFiles)[0];
+    setSelectedFile({
+      name: firstFileName,
+      content: messageFiles[firstFileName],
+      isGenerated: true
+    });
+  };
 
   useEffect(() => {
     const socket = initializeSocket(projectId);
@@ -278,6 +295,93 @@ const handleAIResponse = (data) => {
     }
   };
 
+  // Load past messages when component mounts
+  useEffect(() => {
+    const loadProjectHistory = async () => {
+      try {
+        const response = await axios.get(`/api/messages/${projectId}`);
+        const pastMessages = response.data.messages;
+        
+        // Process past messages
+        setMessages(pastMessages.map(msg => {
+          const messageObj = {
+            sender: msg.sender,
+            message: msg.sender === "BUTO AI" ? (
+              <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
+                <Markdown
+                  children={msg.message.explanation}
+                  options={{
+                    overrides: {
+                      code: SyntaxHighlightedCode,
+                    },
+                  }}
+                />
+              </div>
+            ) : msg.message,
+            fromUser: msg.sender !== "BUTO AI",
+            isAI: msg.sender === "BUTO AI",
+            timestamp: new Date(msg.timestamp).getTime()
+          };
+
+          // Add files if present
+          if (msg.files && Object.keys(msg.files).length > 0) {
+            messageObj.hasFiles = true;
+            messageObj.files = msg.files;
+            messageObj.buildSteps = msg.buildSteps || [];
+            messageObj.runCommands = msg.runCommands || [];
+          }
+
+          return messageObj;
+        }));
+  
+        // Build file history from AI messages with array-based files
+        const fileHistory = pastMessages
+          .filter(msg => msg.sender === "BUTO AI" && msg.files && msg.files.length > 0)
+          .map(msg => ({
+            files: msg.files.reduce((acc, file) => {
+              acc[file.name] = file.content;
+              return acc;
+            }, {}),
+            timestamp: new Date(msg.timestamp).getTime(),
+            buildSteps: msg.buildSteps,
+            runCommands: msg.runCommands
+          }));
+        
+        setFileHistory(fileHistory);
+      } catch (error) {
+        console.error('Error loading project history:', error);
+      }
+    };
+  
+    loadProjectHistory();
+  }, [projectId]);
+
+  const renderFileHistory = () => (
+    <div className="flex-1 overflow-y-auto p-4">
+      {fileHistory.map((entry, index) => (
+        <div key={index} className="mb-4">
+          <div className="text-sm text-gray-400 mb-2">
+            {new Date(entry.timestamp).toLocaleString()}
+          </div>
+          {Object.entries(entry.files).map(([filename, content]) => (
+            <div
+              key={filename}
+              className="bg-gray-800 p-3 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors"
+              onClick={() => setSelectedFile({ 
+                name: filename, 
+                content,
+                buildSteps: entry.buildSteps,
+                runCommands: entry.runCommands
+              })}
+            >
+              <span className="text-sm text-gray-200">{filename}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+
   const renderMessage = (msg, index) => (
     <div
       key={index}
@@ -285,16 +389,21 @@ const handleAIResponse = (data) => {
         msg.fromUser
           ? 'bg-blue-600 ml-auto'
           : msg.isAI
-          ? msg.isBuildSteps
-            ? 'bg-green-700'
-            : msg.isRunCommands
-            ? 'bg-yellow-700'
-            : 'bg-purple-700'
+          ? 'bg-purple-700'
           : 'bg-gray-800'
       } rounded-lg p-3 max-w-[80%] ${msg.isSystem ? 'text-center mx-auto' : ''}`}
     >
-      <div className="font-semibold text-white">
-        {msg.sender}
+      <div className="font-semibold text-white flex items-center justify-between">
+        <span>{msg.sender}</span>
+        {msg.hasFiles && (
+          <button
+            onClick={() => handleFileIconClick(msg.files)}
+            className="ml-2 p-1 hover:bg-purple-600 rounded transition-colors"
+            title="Show generated files"
+          >
+            <IoCodeOutline size={20} />
+          </button>
+        )}
       </div>
       <div className={`mt-1 ${msg.isCommand ? 'font-mono text-sm whitespace-pre' : ''}`}>
         {msg.message}
@@ -415,6 +524,7 @@ const handleAIResponse = (data) => {
             <button onClick={send} className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700"><IoSend /></button>
           </div>
         </div>
+        
 
         <div className="lg:hidden border-t border-gray-700 bg-gray-900 shrink-0 pb-safe">
           <div className="p-3">
@@ -422,9 +532,13 @@ const handleAIResponse = (data) => {
             {Object.keys(generatedFiles).length > 0 ? (
               renderMobileFileList()
             ) : (
+              <>
               <div className="text-center text-gray-500 py-2">
                 No generated files yet. Use @ai to generate code.
               </div>
+              
+                </>
+              
             )}
           </div>
         </div>
@@ -451,6 +565,8 @@ const handleAIResponse = (data) => {
         </div>
         {renderFileList()}
       </div>
+
+      
 
     <div className="hidden lg:flex w-[45%] flex-col">
         <div className="p-4 border-b border-gray-700 shrink-0">
