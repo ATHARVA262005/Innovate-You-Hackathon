@@ -68,27 +68,22 @@ io.on('connection', socket => {
                 const prompt = message.replace("@ai", "").trim();
                 const result = await generateResult(prompt);
 
-                const filesArray = Object.entries(result.files || {}).map(([name, content]) => ({
-                    name,
-                    content
-                  }));
-
                 await messageService.saveMessage({
                     projectId: socket.roomId,
                     sender: "BUTO AI",
                     message: result,
-                    files: result.files || {},
+                    files: result.files || {},  // Will be converted to array format in service
                     buildSteps: result.buildSteps || [],
-                    runCommands: result.runCommands || []
-                  });
+                    runCommands: result.runCommands || [],
+                    prompt: prompt,  // Save the original prompt
+                    isAiResponse: true
+                });
                 
-                // Ensure result is properly formatted before sending
-                const formattedResult = typeof result === 'string' ? 
-                    { explanation: result } : result;
-                
+                // Send original object format to clients
                 io.to(socket.roomId).emit('project-message', {
-                    message: formattedResult,
-                    sender: "BUTO AI"
+                    message: result,
+                    sender: "BUTO AI",
+                    prompt: prompt  // Include prompt in response
                 });
                 
             } catch (error) {

@@ -18,11 +18,24 @@ const messageSchema = new mongoose.Schema({
     name: String,
     content: String
   }],
+  explanation: String,  // Add this field to store AI explanation
   buildSteps: [String],
   runCommands: [String],
+  prompt: {
+    type: String,
+    default: null
+  },
+  isAiResponse: {
+    type: Boolean,
+    default: false
+  },
   timestamp: {
     type: Date,
     default: Date.now
+  },
+  hasGeneratedFiles: {
+    type: Boolean,
+    default: false
   }
 });
 

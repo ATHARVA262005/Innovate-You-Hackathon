@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, createRef, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FaUsers, FaTimes, FaArrowLeft, FaArrowDown } from 'react-icons/fa';
+import { FaUsers, FaTimes, FaArrowLeft, FaArrowDown, FaHistory } from 'react-icons/fa';
 import axios from '../config/axios';
 import { initializeSocket, receiveMessage, sendMessage } from '../config/socket';
 import { UserContext } from '../context/user.context';
@@ -34,6 +34,7 @@ const Project = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [fileHistory, setFileHistory] = useState([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
 
   const projectId = location.state.project._id;
   
@@ -130,6 +131,20 @@ const handleAIResponse = (data) => {
       isAI: true,
       timestamp: new Date().getTime()
     };
+
+    // If there are files, add to file history
+    if (response.files && Object.keys(response.files).length > 0) {
+      messageObj.hasFiles = true;
+      messageObj.files = response.files;
+      
+      // Update file history
+      setFileHistory(prev => [{
+        files: response.files,
+        timestamp: new Date().getTime(),
+        buildSteps: response.buildSteps || [],
+        runCommands: response.runCommands || []
+      }, ...prev]);
+    }
 
     // Add files to message object if present
     if (response.files && Object.keys(response.files).length > 0) {
@@ -295,65 +310,18 @@ const handleAIResponse = (data) => {
     }
   };
 
-  // Load past messages when component mounts
+  // Replace the loadProjectHistory effect with this simpler version that only loads file history
   useEffect(() => {
-    const loadProjectHistory = async () => {
+    const loadFileHistory = async () => {
       try {
-        const response = await axios.get(`/api/messages/${projectId}`);
-        const pastMessages = response.data.messages;
-        
-        // Process past messages
-        setMessages(pastMessages.map(msg => {
-          const messageObj = {
-            sender: msg.sender,
-            message: msg.sender === "BUTO AI" ? (
-              <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
-                <Markdown
-                  children={msg.message.explanation}
-                  options={{
-                    overrides: {
-                      code: SyntaxHighlightedCode,
-                    },
-                  }}
-                />
-              </div>
-            ) : msg.message,
-            fromUser: msg.sender !== "BUTO AI",
-            isAI: msg.sender === "BUTO AI",
-            timestamp: new Date(msg.timestamp).getTime()
-          };
-
-          // Add files if present
-          if (msg.files && Object.keys(msg.files).length > 0) {
-            messageObj.hasFiles = true;
-            messageObj.files = msg.files;
-            messageObj.buildSteps = msg.buildSteps || [];
-            messageObj.runCommands = msg.runCommands || [];
-          }
-
-          return messageObj;
-        }));
-  
-        // Build file history from AI messages with array-based files
-        const fileHistory = pastMessages
-          .filter(msg => msg.sender === "BUTO AI" && msg.files && msg.files.length > 0)
-          .map(msg => ({
-            files: msg.files.reduce((acc, file) => {
-              acc[file.name] = file.content;
-              return acc;
-            }, {}),
-            timestamp: new Date(msg.timestamp).getTime(),
-            buildSteps: msg.buildSteps,
-            runCommands: msg.runCommands
-          }));
-        
-        setFileHistory(fileHistory);
+        const historyRes = await axios.get(`/messages/${projectId}/file-history`);
+        setFileHistory(historyRes.data.fileHistory);
       } catch (error) {
-        console.error('Error loading project history:', error);
+        console.error('Error loading file history:', error);
       }
     };
-  
-    loadProjectHistory();
+
+    loadFileHistory();
   }, [projectId]);
 
   const renderFileHistory = () => (
@@ -461,6 +429,55 @@ const handleAIResponse = (data) => {
     </div>
   );
 
+  const renderHistoryDrawer = () => (
+    <div className={`fixed inset-y-0 left-0 w-full sm:w-[350px] lg:w-[35%] bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out z-50 ${showHistoryDrawer ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+        <h3 className="text-lg font-semibold">File History</h3>
+        <button
+          onClick={() => setShowHistoryDrawer(false)}
+          className="p-2 hover:bg-gray-700 rounded-full"
+        >
+          <FaTimes size={20} />
+        </button>
+      </div>
+      <div className="p-4 overflow-y-auto" style={{ height: 'calc(100vh - 72px)' }}>
+        {fileHistory.map((entry, index) => (
+          <div key={index} className="mb-6">
+            <div className="text-sm text-gray-400 mb-2">
+              {new Date(entry.timestamp).toLocaleString()}
+            </div>
+            {entry.prompt && (
+              <div className="bg-gray-900 p-2 rounded mb-2 text-sm">
+                <span className="text-gray-400">Prompt: </span>
+                <span className="text-gray-200">{entry.prompt}</span>
+              </div>
+            )}
+            <div className="space-y-2">
+              {Object.entries(entry.files).map(([filename, content]) => (
+                <div
+                  key={filename}
+                  className="bg-gray-700 p-3 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors"
+                  onClick={() => {
+                    setSelectedFile({ 
+                      name: filename, 
+                      content,
+                      buildSteps: entry.buildSteps,
+                      runCommands: entry.runCommands,
+                      prompt: entry.prompt  // Include prompt in selected file info
+                    });
+                    setShowHistoryDrawer(false);
+                  }}
+                >
+                  <span className="text-sm text-gray-200">{filename}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-gray-900 text-white overflow-hidden">
       <div className="w-full lg:w-[35%] border-r border-gray-700 flex flex-col h-full">
@@ -469,6 +486,12 @@ const handleAIResponse = (data) => {
             <FaArrowLeft size={16} />
           </button>
           <h2 className="text-xl font-semibold flex-1">Project Chat</h2>
+          <button 
+            onClick={() => setShowHistoryDrawer(true)} 
+            className="p-2 hover:bg-gray-700 rounded-full mr-2"
+          >
+            <FaHistory size={20} />
+          </button>
           <button onClick={() => setShowSidePanel(!showSidePanel)} className="p-2 hover:bg-gray-700 rounded-full">
             <FaUsers size={20} />
           </button>
@@ -707,6 +730,7 @@ const handleAIResponse = (data) => {
           </div>
         </div>
       )}
+      {renderHistoryDrawer()}
     </div>
   );
 };

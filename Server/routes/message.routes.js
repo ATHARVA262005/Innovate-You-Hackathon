@@ -14,4 +14,14 @@ router.get('/:projectId', authUser, async (req, res) => {
   }
 });
 
+// Add new route for file history
+router.get('/:projectId/file-history', authUser, async (req, res) => {
+  try {
+    const fileHistory = await messageService.getProjectFileHistory(req.params.projectId);
+    res.json({ fileHistory });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;
