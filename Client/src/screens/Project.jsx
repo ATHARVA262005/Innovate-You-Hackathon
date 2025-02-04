@@ -42,6 +42,8 @@ const Project = () => {
   const messageBox = createRef();
   const [showScrollButton, setShowScrollButton] = useState(true); // Set initial state to true
   const [generatedFiles, setGeneratedFiles] = useState({});
+  const [buildSteps, setBuildSteps] = useState([]);
+  const [runCommands, setRunCommands] = useState([]);
 
   const send = () => {
     if (!messageText.trim()) return;
@@ -104,41 +106,96 @@ const Project = () => {
         </div>)
 }
 
-  const handleAIResponse = (data) => {
-    try {
-      // Add explanation to chat
-      if (data.message) {
-        setMessages(prev => [...prev, {
-          sender: "BUTO AI",
-          message: WriteAiMessage(data.message),
-          fromUser: false,
-          isAI: true,
-          timestamp: new Date().getTime()
-        }]);
-      }
-
-      // Handle generated files
-      if (aiResponse.files && Object.keys(aiResponse.files).length > 0) {
-        setGeneratedFiles(aiResponse.files);
-        
-        // Auto-select first file
-        const firstFileName = Object.keys(aiResponse.files)[0];
-        setSelectedFile({
-          name: firstFileName,
-          content: aiResponse.files[firstFileName],
-          isGenerated: true
-        });
-      }
-    } catch (error) {
-      console.error('Error processing AI response:', error);
+const handleAIResponse = (data) => {
+  try {
+    const response = typeof data.message === 'string' ? JSON.parse(data.message) : data.message;
+    
+    // Add explanation to chat
+    if (response.explanation) {
       setMessages(prev => [...prev, {
         sender: "BUTO AI",
-        message: "Error processing the response",
-        isError: true,
+        message: (
+          <div className='overflow-auto bg-slate-950 text-white rounded-sm p-2'>
+            <Markdown
+              children={response.explanation}
+              options={{
+                overrides: {
+                  code: SyntaxHighlightedCode,
+                },
+              }}
+            />
+          </div>
+        ),
+        fromUser: false,
+        isAI: true,
         timestamp: new Date().getTime()
       }]);
     }
-  };
+
+    // Handle generated files
+    if (response.files && Object.keys(response.files).length > 0) {
+      setGeneratedFiles(response.files);
+      
+      // Auto-select first file
+      const firstFileName = Object.keys(response.files)[0];
+      setSelectedFile({
+        name: firstFileName,
+        content: response.files[firstFileName],
+        isGenerated: true
+      });
+    }
+
+    // Handle build steps
+    if (response.buildSteps && response.buildSteps.length > 0) {
+      setBuildSteps(response.buildSteps);
+      setMessages(prev => [...prev, {
+        sender: "BUTO AI",
+        message: (
+          <div className='bg-slate-900 p-2 rounded'>
+            <h3 className='font-bold mb-2'>Build Steps:</h3>
+            <ol className='list-decimal pl-5'>
+              {response.buildSteps.map((step, idx) => (
+                <li key={idx}>{step}</li>
+              ))}
+            </ol>
+          </div>
+        ),
+        fromUser: false,
+        isBuildSteps: true,
+        timestamp: new Date().getTime()
+      }]);
+    }
+
+    // Handle run commands
+    if (response.runCommands && response.runCommands.length > 0) {
+      setRunCommands(response.runCommands);
+      setMessages(prev => [...prev, {
+        sender: "BUTO AI",
+        message: (
+          <div className='bg-slate-900 p-2 rounded'>
+            <h3 className='font-bold mb-2'>Run Commands:</h3>
+            <ul className='list-disc pl-5'>
+              {response.runCommands.map((cmd, idx) => (
+                <li key={idx} className='font-mono'>{cmd}</li>
+              ))}
+            </ul>
+          </div>
+        ),
+        fromUser: false,
+        isRunCommands: true,
+        timestamp: new Date().getTime()
+      }]);
+    }
+  } catch (error) {
+    console.error('Error processing AI response:', error);
+    setMessages(prev => [...prev, {
+      sender: "BUTO AI",
+      message: "Error processing the response",
+      isError: true,
+      timestamp: new Date().getTime()
+    }]);
+  }
+};
 
   useEffect(() => {
     const socket = initializeSocket(projectId);
@@ -228,27 +285,15 @@ const Project = () => {
         msg.fromUser
           ? 'bg-blue-600 ml-auto'
           : msg.isAI
-          ? msg.isCommand
-            ? 'bg-gray-700'
-            : msg.isSystem
-            ? 'bg-indigo-800'
-            : msg.isError
-            ? 'bg-red-600'
+          ? msg.isBuildSteps
+            ? 'bg-green-700'
+            : msg.isRunCommands
+            ? 'bg-yellow-700'
             : 'bg-purple-700'
           : 'bg-gray-800'
       } rounded-lg p-3 max-w-[80%] ${msg.isSystem ? 'text-center mx-auto' : ''}`}
     >
-      <div className={`font-semibold ${
-        msg.fromUser 
-          ? 'text-white' 
-          : msg.isAI 
-          ? msg.isCommand 
-            ? 'text-gray-300'
-            : msg.isSystem
-            ? 'text-indigo-200'
-            : 'text-purple-200' 
-          : 'text-blue-400'
-      }`}>
+      <div className="font-semibold text-white">
         {msg.sender}
       </div>
       <div className={`mt-1 ${msg.isCommand ? 'font-mono text-sm whitespace-pre' : ''}`}>

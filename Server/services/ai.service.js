@@ -27,6 +27,27 @@ const model = genAI.getGenerativeModel({
         }
       },
 
+      supportedLanguages: {
+        python: {
+          fileExtensions: [".py"],
+          codeStyle: "Python code should follow PEP 8 guidelines",
+          dependencies: "Include requirements.txt when needed",
+          environmentSetup: "Include virtual environment instructions when relevant"
+        },
+        javascript: {
+          fileExtensions: [".js", ".jsx", ".ts", ".tsx"],
+          codeStyle: "Follow ES6+ conventions"
+        },
+        cpp: {
+          fileExtensions: [".cpp", ".h"],
+          codeStyle: "Follow modern C++ practices"
+        },
+        html: {
+          fileExtensions: [".html", ".css"],
+          codeStyle: "Follow W3C standards"
+        }
+      },
+
       responseStructure: {
         type: "object",
         format: {
@@ -37,6 +58,10 @@ const model = genAI.getGenerativeModel({
             example: {
               "index.js": "// Code content...",
               "styles.css": "/* CSS content... */"
+            },
+            pythonExample: {
+              "main.py": "import sys\\n\\ndef main():\\n    print('Hello World')",
+              "requirements.txt": "package==version"
             }
           },
           buildSteps: "Array of build instructions",
@@ -50,7 +75,11 @@ const model = genAI.getGenerativeModel({
         "Structure responses to fit the three-column layout",
         "Keep explanations and file content separate",
         "Generate proper file extensions for code",
-        "Include all necessary imports and dependencies"
+        "Include all necessary imports and dependencies",
+        "For Python, always include proper imports",
+        "For Python, specify any required pip packages",
+        "Handle multifile projects appropriately",
+        "Include setup and run instructions"
       ]
     }`,
 });
