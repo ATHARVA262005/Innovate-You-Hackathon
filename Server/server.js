@@ -66,7 +66,8 @@ io.on('connection', socket => {
         if (aiIsPresentInMessage) {
             try {
                 const prompt = message.replace("@ai", "").trim();
-                const result = await generateResult(prompt);
+                // Pass projectId to generateResult
+                const result = await generateResult(prompt, socket.roomId);
 
                 await messageService.saveMessage({
                     projectId: socket.roomId,

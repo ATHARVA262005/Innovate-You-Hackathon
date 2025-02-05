@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Message from '../models/message.model.js';  // Add this import
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY);
 const model = genAI.getGenerativeModel({ 
@@ -112,9 +113,55 @@ const generateResultWithRetry = async (prompt, retries = 3, backoff = 1000) => {
   throw new Error('Maximum retries reached');
 };
 
-export const generateResult = async (prompt) => {
+// Add function to get project context
+const getProjectContext = async (projectId, currentPrompt) => {
   try {
-    const response = await generateResultWithRetry(prompt);
+    const previousMessages = await Message.find({
+      projectId,
+      isAiResponse: true,
+      files: { $exists: true, $ne: [] }
+    })
+    .sort({ timestamp: -1 })
+    .limit(5);  // Get last 5 AI responses with files
+
+    if (previousMessages.length === 0) return currentPrompt;
+
+    const context = previousMessages.map(msg => ({
+      prompt: msg.prompt,
+      files: msg.files.reduce((acc, file) => {
+        acc[file.name] = file.content;
+        return acc;
+      }, {})
+    })).reverse();
+
+    return `
+Previous context:
+${context.map(ctx => `
+Prompt: ${ctx.prompt}
+Generated files:
+${Object.entries(ctx.files).map(([name, content]) => `
+File: ${name}
+\`\`\`
+${content}
+\`\`\`
+`).join('\n')}
+`).join('\n')}
+
+Current request: ${currentPrompt}
+
+Based on the previous context, please update or create new files as needed. Maintain consistency with existing code.`;
+  } catch (error) {
+    console.error('Error getting project context:', error);
+    return currentPrompt;
+  }
+};
+
+export const generateResult = async (prompt, projectId) => {
+  try {
+    // Get context-aware prompt
+    const contextualPrompt = await getProjectContext(projectId, prompt);
+    
+    const response = await generateResultWithRetry(contextualPrompt);
     return {
       explanation: response.explanation || "No explanation provided",
       files: response.files || {},

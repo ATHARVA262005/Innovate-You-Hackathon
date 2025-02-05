@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, createRef, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FaUsers, FaTimes, FaArrowLeft, FaArrowDown, FaHistory } from 'react-icons/fa';
+import { FaUsers, FaTimes, FaArrowLeft, FaArrowDown, FaHistory, FaCopy, FaCheck } from 'react-icons/fa';
 import axios from '../config/axios';
 import { initializeSocket, receiveMessage, sendMessage } from '../config/socket';
 import { UserContext } from '../context/user.context';
@@ -35,6 +35,7 @@ const Project = () => {
   const navigate = useNavigate();
   const [fileHistory, setFileHistory] = useState([]);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const projectId = location.state.project._id;
   
@@ -227,6 +228,18 @@ const handleAIResponse = (data) => {
       content: messageFiles[firstFileName],
       isGenerated: true
     });
+  };
+
+  const handleCopyCode = async () => {
+    if (selectedFile) {
+      try {
+        await navigator.clipboard.writeText(selectedFile.content);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000); // Reset after 2 seconds
+      } catch (err) {
+        console.error('Failed to copy text:', err);
+      }
+    }
   };
 
   useEffect(() => {
@@ -592,10 +605,23 @@ const handleAIResponse = (data) => {
       
 
     <div className="hidden lg:flex w-[45%] flex-col">
-        <div className="p-4 border-b border-gray-700 shrink-0">
+        <div className="p-4 border-b border-gray-700 shrink-0 flex justify-between items-center">
           <h2 className="text-lg font-semibold">
             {selectedFile ? selectedFile.name : 'Select a file to preview'}
           </h2>
+          {selectedFile && (
+            <button
+              onClick={handleCopyCode}
+              className="p-2 hover:bg-gray-700 rounded transition-colors flex items-center gap-2"
+              title="Copy code"
+            >
+              {copySuccess ? (
+                <><FaCheck className="text-green-500" /> Copied!</>
+              ) : (
+                <><FaCopy /> Copy</>
+              )}
+            </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-4 min-h-0 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {selectedFile ? (
@@ -624,12 +650,27 @@ const handleAIResponse = (data) => {
             <h2 className="text-lg font-semibold">
               {selectedFile ? selectedFile.name : 'Select a file to preview'}
             </h2>
-            <button
-              onClick={() => setShowCodeDrawer(false)}
-              className="p-2 hover:bg-gray-700 rounded-full"
-            >
-              <FaTimes size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedFile && (
+                <button
+                  onClick={handleCopyCode}
+                  className="p-2 hover:bg-gray-700 rounded transition-colors"
+                  title="Copy code"
+                >
+                  {copySuccess ? (
+                    <FaCheck className="text-green-500" />
+                  ) : (
+                    <FaCopy />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => setShowCodeDrawer(false)}
+                className="p-2 hover:bg-gray-700 rounded-full"
+              >
+                <FaTimes size={20} />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             {selectedFile ? (
