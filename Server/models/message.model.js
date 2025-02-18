@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
+  _id: {
+    type: mongoose.Schema.Types.ObjectId,
+    auto: true // This ensures each message gets an ID
+  },
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'project',
