@@ -1,51 +1,60 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Home from '../screens/Home';
-import Login from '../screens/Login';
-import Register from '../screens/Register';
-import Project from '../screens/Project';
-import ForgotPassword from '../screens/ForgotPassword';
-import VerifyOTP from '../screens/VerifyOTP';
-import Profile from '../screens/Profile';  // ✅ Import Profile Page
-import Logout from '../screens/Logout';    // ✅ Import Logout Page
-import ProtectedRoute from '../auth/ProtectedRoute';
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "../screens/Home";
+import Login from "../screens/Login";
+import Register from "../screens/Register";
+import Project from "../screens/Project";
+import ForgotPassword from "../screens/ForgotPassword";
+import VerifyOTP from "../screens/VerifyOTP";
+import Profile from "../screens/Profile"; // ✅ Import Profile Page
+import Logout from "../screens/Logout"; // ✅ Import Logout Page
+import BookmarkPage from "../screens/BookmarkPage"; // ✅ Import BookmarkPage
+import ProtectedRoute from "../auth/ProtectedRoute";
 
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
         {/* Protected Routes */}
-        <Route 
-          path="/" 
+        <Route
+          path="/"
           element={
             <ProtectedRoute>
               <Home />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/project" 
+        <Route
+          path="/project"
           element={
             <ProtectedRoute>
               <Project />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/profile" 
+        <Route
+          path="/profile"
           element={
             <ProtectedRoute>
               <Profile />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/logout" 
+        <Route
+          path="/logout"
           element={
             <ProtectedRoute>
               <Logout />
             </ProtectedRoute>
-          } 
+          }
+        />
+        <Route
+          path="/bookmarks"
+          element={
+            <ProtectedRoute>
+              <BookmarkPage />
+            </ProtectedRoute>
+          }
         />
 
         {/* Public Routes */}

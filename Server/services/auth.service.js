@@ -7,7 +7,7 @@ import User from '../models/user.model.js';
 
 dotenv.config(); // Load environment variables
 
-const SECRET_KEY = process.env.SECRET_KEY || 'your_secret_key';
+const SECRET_KEY = process.env.SECRET_KEY;
 const OTP_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutes expiry
 
 // 🔹 Define OTP Schema for MongoDB
