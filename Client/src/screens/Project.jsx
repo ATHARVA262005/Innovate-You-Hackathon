@@ -14,8 +14,8 @@ import {
   FaHistory,
   FaCopy,
   FaCheck,
-  FaBookmark,
 } from "react-icons/fa";
+import { BsBookmarkStar } from "react-icons/bs";
 import axios from "../config/axios";
 import {
   initializeSocket,
@@ -466,14 +466,28 @@ const Project = () => {
           {isAiMessage && msg._id && (
             <button
               onClick={() => toggleMessageBookmark(msg._id)}
-              className="ml-2 p-1 hover:bg-yellow-600 rounded transition-colors"
+              className={`
+              ml-2 p-2 rounded-lg
+              transform transition-all duration-300
+              hover:scale-110
+              ${
+                msg.isBookmarked
+                  ? "bg-gradient-to-r from-purple-600 to-blue-500 shadow-lg shadow-blue-500/30"
+                  : "bg-gray-800 hover:bg-gray-700"
+              }
+            `}
               title="Bookmark Message"
             >
-              <FaBookmark
-                size={20}
-                className={`${
-                  msg.isBookmarked ? "text-yellow-500" : "text-gray-400"
-                }`}
+              <BsBookmarkStar
+                size={18}
+                className={`
+                transition-all duration-300
+                ${
+                  msg.isBookmarked
+                    ? "text-white animate-pulse"
+                    : "text-gray-400 hover:text-blue-400"
+                }
+              `}
               />
             </button>
           )}
@@ -714,16 +728,28 @@ const Project = () => {
                     {isAiMessage && (
                       <button
                         onClick={() => toggleMessageBookmark(msg._id)}
-                        className="ml-2 p-1 hover:bg-yellow-600 rounded transition-colors"
+                        className={`
+                        ml-2 p-2 rounded-lg
+                        transform transition-all duration-300
+                        hover:scale-110
+                        ${
+                          msg.isBookmarked
+                            ? "bg-gradient-to-r from-purple-600 to-blue-500 shadow-lg shadow-blue-500/30"
+                            : "bg-gray-800 hover:bg-gray-700"
+                        }
+                      `}
                         title="Bookmark Message"
                       >
-                        <FaBookmark
-                          size={20}
-                          className={`${
+                        <BsBookmarkStar
+                          size={18}
+                          className={`
+                          transition-all duration-300
+                          ${
                             msg.isBookmarked
-                              ? "text-yellow-500"
-                              : "text-gray-400"
-                          }`}
+                              ? "text-white animate-pulse"
+                              : "text-gray-400 hover:text-blue-400"
+                          }
+                        `}
                         />
                       </button>
                     )}
