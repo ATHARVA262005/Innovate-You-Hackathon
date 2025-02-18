@@ -1,5 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
-import { UserContext } from "../context/user.context";
+import {  useEffect, useState } from "react";
 import {
   AiOutlinePlus,
   AiOutlineClose,
@@ -12,7 +11,6 @@ import { useNavigate } from "react-router-dom";
 import axios from "../config/axios";
 
 const Home = () => {
-  const { user } = useContext(UserContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create"); // 'create' or 'rename'
   const [projectName, setProjectName] = useState("");

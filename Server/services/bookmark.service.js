@@ -1,5 +1,4 @@
 import Bookmark from "../models/bookmark.model.js";
-import ProjectModel from "../models/project.model.js";
 import mongoose from "mongoose";
 
 export const getTotalBookmarkCount = async (userId) => {
@@ -8,8 +7,7 @@ export const getTotalBookmarkCount = async (userId) => {
   }
 
   // Count total number of bookmarks (both project and message bookmarks)
-  const count = await Bookmark.countDocuments({ userId });
-  return count;
+  return await Bookmark.countDocuments({ userId });
 };
 
 export const getBookmarkedProjects = async (userId) => {
@@ -17,13 +15,20 @@ export const getBookmarkedProjects = async (userId) => {
     throw new Error("User ID is required");
   }
 
-  const bookmarks = await Bookmark.find({
-    userId,
-  }).populate("projectId");
+  const bookmarks = await Bookmark.find({ userId, projectId: { $ne: null } })
+    .populate("projectId")
+    .lean(); // Use lean() for performance
 
   console.log("Bookmarked Projects in DB:", bookmarks);
 
-  return bookmarks.map((bookmark) => bookmark.projectId);
+  // Ensure unique projects by using a Map to remove duplicates
+  const uniqueProjects = Array.from(
+    new Map(
+      bookmarks.map((b) => [b.projectId._id.toString(), b.projectId])
+    ).values()
+  );
+
+  return uniqueProjects;
 };
 
 export const getBookmarkedMessages = async (userId, projectId) => {
@@ -39,12 +44,14 @@ export const getBookmarkedMessages = async (userId, projectId) => {
     userId,
     projectId,
     messageId: { $ne: null },
-  }).populate({
-    path: "messageId",
-    model: "message",
-    select:
-      "sender message explanation files hasGeneratedFiles isAiResponse timestamp",
-  });
+  })
+    .populate({
+      path: "messageId",
+      model: "message",
+      select:
+        "sender message explanation files hasGeneratedFiles isAiResponse timestamp",
+    })
+    .lean(); // Use lean() for performance
 
   return bookmarks.map((bookmark) => bookmark.messageId);
 };
@@ -62,20 +69,16 @@ export const toggleProjectBookmark = async (userId, projectId) => {
 
   if (existingBookmark) {
     await Bookmark.deleteOne({ _id: existingBookmark._id });
-    return false; // Indicates bookmark was removed
+    return { isBookmarked: false, message: "Project bookmark removed" };
   } else {
-    await Bookmark.create({
-      userId,
-      projectId,
-      messageId: null,
-    });
-    return true; // Indicates bookmark was added
+    await Bookmark.create({ userId, projectId, messageId: null });
+    return { isBookmarked: true, message: "Project bookmarked" };
   }
 };
 
 export const toggleMessageBookmark = async (userId, projectId, messageId) => {
   if (!userId || !projectId || !messageId) {
-    throw new Error("User ID, Project ID and Message ID are required");
+    throw new Error("User ID, Project ID, and Message ID are required");
   }
 
   const existingBookmark = await Bookmark.findOne({
@@ -86,14 +89,10 @@ export const toggleMessageBookmark = async (userId, projectId, messageId) => {
 
   if (existingBookmark) {
     await Bookmark.deleteOne({ _id: existingBookmark._id });
-    return false; // Indicates bookmark was removed
+    return { isBookmarked: false, message: "Message bookmark removed" };
   } else {
-    await Bookmark.create({
-      userId,
-      projectId,
-      messageId,
-    });
-    return true; // Indicates bookmark was added
+    await Bookmark.create({ userId, projectId, messageId });
+    return { isBookmarked: true, message: "Message bookmarked" };
   }
 };
 
@@ -102,17 +101,12 @@ export const deleteMessageBookmark = async (userId, messageId) => {
     throw new Error("User ID and Message ID are required");
   }
 
-  // Check if the bookmark exists for the given message and user
-  const bookmark = await Bookmark.findOne({
-    userId,
-    messageId,
-  });
+  const bookmark = await Bookmark.findOne({ userId, messageId });
 
   if (!bookmark) {
-    return false; // No bookmark found, so nothing to delete
+    return { success: false, message: "Bookmark not found" };
   }
 
-  // Delete the bookmark
   await Bookmark.deleteOne({ _id: bookmark._id });
-  return true; // Successfully deleted the bookmark
+  return { success: true, message: "Bookmark deleted" };
 };
