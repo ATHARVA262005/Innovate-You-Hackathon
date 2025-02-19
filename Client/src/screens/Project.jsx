@@ -14,6 +14,7 @@ import {
   FaHistory,
   FaCopy,
   FaCheck,
+  FaColumns,
 } from "react-icons/fa";
 import { BsBookmarkStar } from "react-icons/bs";
 import axios from "../config/axios";
@@ -57,9 +58,9 @@ const Project = () => {
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
-
+  const [showProjectBookmarks, setShowProjectBookmarks] = useState(false);
+  const [bookmarkedMessages, setBookmarkedMessages] = useState([]);
   const projectId = location.state.project._id;
-
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState("");
   const { user } = useContext(UserContext);
@@ -68,17 +69,40 @@ const Project = () => {
   const [generatedFiles, setGeneratedFiles] = useState({});
   const [buildSteps, setBuildSteps] = useState([]);
   const [runCommands, setRunCommands] = useState([]);
+  const [activeChat, setActiveChat] = useState("team"); // 'team' or 'ai'
+  const [splitView, setSplitView] = useState(false);
+
+  const fetchProjectBookmarkedMessages = async () => {
+    try {
+      const response = await axios.get(
+        `/bookmarks/projects/${projectId}/bookmarked-messages`
+      );
+      setBookmarkedMessages(response.data);
+    } catch (err) {
+      console.error("Failed to fetch bookmarked messages:", err);
+    }
+  };
 
   const send = async () => {
     if (!messageText.trim()) return;
 
     try {
+      // Determine if this is an AI message based on active chat
+      const isAiMessage = activeChat === "ai";
+
+      // Format message with AI prefix if needed
+      const formattedMessage =
+        isAiMessage && !messageText.toLowerCase().includes("@ai")
+          ? `@ai ${messageText}`
+          : messageText;
+
       // Send to server first and get the saved message with ID
       const savedMessage = await axios.post("/messages/save", {
         projectId,
         sender: user.email,
-        message: messageText,
+        message: formattedMessage,
         fromUser: true,
+        isAiTargeted: isAiMessage,
         timestamp: new Date().getTime(),
       });
 
@@ -86,8 +110,9 @@ const Project = () => {
       const newMessage = {
         _id: savedMessage.data._id,
         sender: user.email,
-        message: messageText,
+        message: formattedMessage,
         fromUser: true,
+        isAiTargeted: isAiMessage,
         timestamp: new Date().getTime(),
       };
 
@@ -96,9 +121,10 @@ const Project = () => {
       // Send through socket with the message ID
       sendMessage("project-message", {
         _id: savedMessage.data._id,
-        message: messageText,
+        message: formattedMessage,
         sender: user._id,
         projectId: projectId,
+        isAiTargeted: isAiMessage,
       });
 
       setMessageText("");
@@ -650,131 +676,189 @@ const Project = () => {
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-gray-900 text-white overflow-hidden">
       <div className="w-full lg:w-[35%] border-r border-gray-700 flex flex-col h-full">
-        <div className="p-4 border-b border-gray-700 flex items-center shrink-0">
-          <button
-            onClick={() => navigate("/")}
-            className="p-2 hover:bg-gray-700 rounded-full mr-3"
-          >
-            <FaArrowLeft size={16} />
-          </button>
-          <h2 className="text-xl font-semibold flex-1">Project Chat</h2>
-          <button
-            onClick={() => setShowHistoryDrawer(true)}
-            className="p-2 hover:bg-gray-700 rounded-full mr-2"
-          >
-            <FaHistory size={20} />
-          </button>
-          <button
-            onClick={() => setShowSidePanel(!showSidePanel)}
-            className="p-2 hover:bg-gray-700 rounded-full"
-          >
-            <FaUsers size={20} />
-          </button>
+        <div className="p-4 border-b border-gray-700 flex flex-col shrink-0">
+          <div className="flex items-center mb-2">
+            <button
+              onClick={() => navigate("/")}
+              className="p-2 hover:bg-gray-700 rounded-full mr-3"
+            >
+              <FaArrowLeft size={16} />
+            </button>
+            <h2 className="text-xl font-semibold flex-1">Project Chat</h2>
+            <button
+              onClick={() => setShowHistoryDrawer(true)}
+              className="p-2 hover:bg-gray-700 rounded-full mr-2"
+            >
+              <FaHistory size={20} />
+            </button>
+            <button
+              onClick={() => {
+                setShowProjectBookmarks(true);
+                fetchProjectBookmarkedMessages();
+              }}
+              className="p-2 hover:bg-gray-700 rounded-full mr-2"
+            >
+              <BsBookmarkStar size={20} />
+            </button>
+            <button
+              onClick={() => setShowSidePanel(!showSidePanel)}
+              className="p-2 hover:bg-gray-700 rounded-full"
+            >
+              <FaUsers size={20} />
+            </button>
+          </div>
+          <div className="flex w-full">
+            <button
+              onClick={() => setActiveChat("team")}
+              className={`flex-1 px-4 py-2 rounded-tl-lg rounded-tr-lg transition-colors duration-200 ${
+                activeChat === "team"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+              }`}
+            >
+              Team Chat
+            </button>
+            <button
+              onClick={() => setActiveChat("ai")}
+              className={`flex-1 px-4 py-2 ml-2 rounded-tl-lg rounded-tr-lg transition-colors duration-200 ${
+                activeChat === "ai"
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+              }`}
+            >
+              AI Assistant
+            </button>
+            <button
+              onClick={() => setSplitView(!splitView)}
+              className={`ml-2 p-2 rounded-lg transition-colors duration-200 ${
+                splitView
+                  ? "bg-gray-700 text-white"
+                  : "bg-gray-800 hover:bg-gray-700 text-gray-300"
+              }`}
+              title={splitView ? "Single View" : "Split View"}
+            >
+              <FaColumns size={18} />
+            </button>
+          </div>
+        </div>
+        <div
+          className={`fixed inset-y-0 left-0 w-full sm:w-[350px] lg:w-[35%] bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out z-50 ${
+            showProjectBookmarks ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Bookmarked Messages</h3>
+            <button
+              onClick={() => setShowProjectBookmarks(false)}
+              className="p-2 hover:bg-gray-700 rounded-full"
+            >
+              <FaTimes size={20} />
+            </button>
+          </div>
+          <div className="p-4 overflow-y-auto">
+            {bookmarkedMessages.length > 0 ? (
+              <ul className="space-y-3">
+                {bookmarkedMessages.map((message) => (
+                  <li
+                    key={message._id}
+                    className="bg-gray-700 p-3 rounded-lg transition-all duration-300 hover:bg-gray-600"
+                  >
+                    <div className="text-sm text-gray-200">
+                      {message.message}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-2">
+                      {new Date(message.timestamp).toLocaleString()}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-center text-gray-500 mt-10">
+                No bookmarked messages in this project.
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="relative flex-1">
+        <div className={`relative flex-1 ${splitView ? "flex" : ""}`}>
+          {/* Team Chat */}
           <div
-            ref={messageBox}
-            className="absolute inset-0 overflow-y-auto p-4 space-y-4 scroll-smooth overflow-x-hidden"
-            style={{
-              scrollbarWidth: "thin",
-              scrollbarColor: "#4B5563 #1F2937",
-              height: "calc(100vh - 180px)", // Account for header, input, and generated files
-            }}
+            className={`${
+              !splitView && activeChat !== "team" ? "hidden" : ""
+            } ${
+              splitView ? "w-1/2 border-r border-gray-700" : "w-full"
+            } relative h-full`}
           >
-            <style>{`
-              div::-webkit-scrollbar {
-                width: 8px;
-              }
-              div::-webkit-scrollbar-track {
-                background: #1f2937;
-              }
-              div::-webkit-scrollbar-thumb {
-                background-color: #4b5563;
-                border-radius: 20px;
-                border: 2px solid #1f2937;
-              }
-            `}</style>
-            {messages.map((msg, index) => {
-              // Safe check for AI message - check if it's a string first
-              const isAiMessage =
-                typeof msg.message === "string" &&
-                msg.message.toLowerCase().includes("@ai");
+            <div className="absolute top-0 left-0 w-full py-1 px-3 bg-blue-600 bg-opacity-20 text-center text-xs text-blue-300">
+              Team Chat
+            </div>
+            <div
+              ref={messageBox}
+              className="absolute inset-0 pt-6 overflow-y-auto p-4 space-y-4 scroll-smooth overflow-x-hidden"
+              style={{
+                scrollbarWidth: "thin",
+                scrollbarColor: "#4B5563 #1F2937",
+                height: "calc(100vh - 180px)",
+              }}
+            >
+              {messages
+                .filter(
+                  (msg) =>
+                    !msg.isAI &&
+                    (typeof msg.message !== "string" ||
+                      !msg.message.toLowerCase().includes("@ai"))
+                )
+                .map((msg, index) => renderMessage(msg, index))}
 
-              return (
-                <div
-                  key={index}
-                  className={`${
-                    msg.fromUser
-                      ? "bg-blue-600 ml-auto"
-                      : msg.isAI
-                      ? "bg-purple-700"
-                      : "bg-gray-800"
-                  } rounded-lg p-3 max-w-[80%] ${
-                    msg.isSystem ? "text-center mx-auto" : ""
-                  }`}
+              {showScrollButton && activeChat === "team" && !splitView && (
+                <button
+                  onClick={scrollToBottom}
+                  className="fixed bottom-20 left-4 bg-blue-600 p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-200 z-30"
+                  aria-label="Scroll to bottom"
                 >
-                  <div className="font-semibold text-white flex items-center justify-between">
-                    <span>{msg.sender}</span>
-                    {msg.hasFiles && (
-                      <button
-                        onClick={() => handleFileIconClick(msg.files)}
-                        className="ml-2 p-1 hover:bg-purple-600 rounded transition-colors"
-                        title="Show generated files"
-                      >
-                        <IoCodeOutline size={20} />
-                      </button>
-                    )}
-                    {isAiMessage && (
-                      <button
-                        onClick={() => toggleMessageBookmark(msg._id)}
-                        className={`
-                        ml-2 p-2 rounded-lg
-                        transform transition-all duration-300
-                        hover:scale-110
-                        ${
-                          msg.isBookmarked
-                            ? "bg-gradient-to-r from-purple-600 to-blue-500 shadow-lg shadow-blue-500/30"
-                            : "bg-gray-800 hover:bg-gray-700"
-                        }
-                      `}
-                        title="Bookmark Message"
-                      >
-                        <BsBookmarkStar
-                          size={18}
-                          className={`
-                          transition-all duration-300
-                          ${
-                            msg.isBookmarked
-                              ? "text-white animate-pulse"
-                              : "text-gray-400 hover:text-blue-400"
-                          }
-                        `}
-                        />
-                      </button>
-                    )}
-                  </div>
-                  <div
-                    className={`mt-1 ${
-                      msg.isCommand ? "font-mono text-sm whitespace-pre" : ""
-                    }`}
-                  >
-                    {msg.message}
-                  </div>
-                </div>
-              );
-            })}
+                  <FaArrowDown className="text-white" size={20} />
+                </button>
+              )}
+            </div>
           </div>
 
-          {showScrollButton && (
-            <button
-              onClick={scrollToBottom}
-              className="absolute bottom-20 left-4 bg-blue-600 p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-200 z-30"
-              aria-label="Scroll to bottom"
+          {/* AI Chat */}
+          <div
+            className={`${!splitView && activeChat !== "ai" ? "hidden" : ""} ${
+              splitView ? "w-1/2" : "w-full"
+            } relative h-full`}
+          >
+            <div className="absolute top-0 left-0 w-full py-1 px-3 bg-purple-600 bg-opacity-20 text-center text-xs text-purple-300">
+              AI Assistant
+            </div>
+            <div
+              className="absolute inset-0 pt-6 overflow-y-auto p-4 space-y-4 scroll-smooth overflow-x-hidden"
+              style={{
+                scrollbarWidth: "thin",
+                scrollbarColor: "#4B5563 #1F2937",
+                height: "calc(100vh - 180px)",
+              }}
             >
-              <FaArrowDown className="text-white" size={20} />
-            </button>
-          )}
+              {messages
+                .filter(
+                  (msg) =>
+                    msg.isAI ||
+                    (typeof msg.message === "string" &&
+                      msg.message.toLowerCase().includes("@ai"))
+                )
+                .map((msg, index) => renderMessage(msg, index))}
+
+              {showScrollButton && activeChat === "ai" && !splitView && (
+                <button
+                  onClick={scrollToBottom}
+                  className="fixed bottom-20 left-4 bg-purple-600 p-3 rounded-full shadow-lg hover:bg-purple-700 transition-colors duration-200 z-30"
+                  aria-label="Scroll to bottom"
+                >
+                  <FaArrowDown className="text-white" size={20} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="p-4 border-t border-gray-700 bg-gray-900 shrink-0 z-20">
@@ -784,15 +868,30 @@ const Project = () => {
               onChange={(e) => setMessageText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
               type="text"
-              placeholder="Type your message..."
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+              placeholder={`Type your message to ${
+                activeChat === "team" ? "the team" : "AI assistant"
+              }...`}
+              className={`flex-1 bg-gray-800 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
+                activeChat === "team"
+                  ? "border-blue-500 focus:border-blue-500 focus:ring-blue-500"
+                  : "border-purple-500 focus:border-purple-500 focus:ring-purple-500"
+              }`}
             />
             <button
               onClick={send}
-              className="bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700"
+              className={`px-4 py-2 rounded-lg transition-colors duration-200 ${
+                activeChat === "team"
+                  ? "bg-blue-600 hover:bg-blue-700"
+                  : "bg-purple-600 hover:bg-purple-700"
+              }`}
             >
               <IoSend />
             </button>
+          </div>
+          <div className="mt-2 text-xs text-gray-400 text-center">
+            {activeChat === "team"
+              ? "Messages here are visible to all team members"
+              : "Direct conversation with the AI assistant"}
           </div>
         </div>
 
