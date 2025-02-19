@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  FaArrowLeft,
-  FaBookmark,
-  FaTrash,
-  FaSearch,
-  FaSpinner,
-} from "react-icons/fa";
+import { FaArrowLeft, FaTrash, FaSearch, FaSpinner } from "react-icons/fa";
 import axios from "../config/axios";
 
 const BookmarkPage = () => {
@@ -64,15 +58,39 @@ const BookmarkPage = () => {
 
   const removeBookmark = async (messageId, e) => {
     e.stopPropagation();
+    
+    if (!selectedProject) {
+      setError("Cannot remove bookmark: No project selected");
+      return;
+    }
+    
     try {
-      console.log("Removing bookmark for messageId:", messageId);
-      await axios.delete(`/bookmarks/messages/${messageId}/bookmark`);
+      console.log("Removing bookmark for messageId:", messageId, "in project:", selectedProject);
+      
+      // Use the updated endpoint structure that includes projectId
+      const response = await axios.delete(
+        `/bookmarks/projects/${selectedProject}/messages/${messageId}/bookmark`
+      );
+      
+      console.log("Bookmark removal response:", response.data);
+      
+      // Update UI after successful removal
       setBookmarkedMessages((prevMessages) =>
         prevMessages.filter((message) => message._id !== messageId)
       );
+      
+      // Clear any previous errors
+      if (error) setError(null);
+      
     } catch (err) {
-      setError("Failed to remove bookmark. Please try again.");
+      const errorMessage = err.response?.data?.message || 
+                           "Failed to remove bookmark. Please try again.";
+      setError(errorMessage);
       console.error("Failed to remove bookmark:", err);
+      console.error("Error details:", err.response?.data);
+      
+      // Auto-clear error after 5 seconds
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -211,6 +229,7 @@ const BookmarkPage = () => {
                       <button
                         onClick={(e) => removeBookmark(message._id, e)}
                         className="p-2 hover:bg-gray-600 hover:text-red-400 rounded-full transition-colors"
+                        aria-label="Remove bookmark"
                       >
                         <FaTrash className="h-4 w-4" />
                       </button>

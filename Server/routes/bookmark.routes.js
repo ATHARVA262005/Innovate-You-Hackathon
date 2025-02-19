@@ -29,6 +29,7 @@ router.post(
   bookmarkController.toggleProjectBookmark
 );
 
+// Handle bookmark creation/toggle with POST
 router.post(
   "/projects/:projectId/messages/:messageId/bookmark",
   authMiddleware.authUser,
@@ -58,10 +59,44 @@ router.post(
   }
 );
 
+// New consistent DELETE endpoint that matches the bookmark structure 
+router.delete(
+  "/projects/:projectId/messages/:messageId/bookmark",
+  authMiddleware.authUser,
+  async (req, res) => {
+    const { projectId, messageId } = req.params;
+    if (!projectId || !messageId) {
+      return res
+        .status(400)
+        .json({ message: "Project ID and Message ID are required" });
+    }
+    try {
+      await bookmarkService.removeMessageBookmark(
+        req.user._id,
+        projectId,
+        messageId
+      );
+      res.status(200).json({
+        message: "Message bookmark removed successfully"
+      });
+    } catch (error) {
+      console.error("Error removing message bookmark:", error);
+      res.status(400).json({ message: error.message });
+    }
+  }
+);
+
+// Legacy endpoint - marked as deprecated
 router.delete(
   "/messages/:messageId/bookmark",
   authMiddleware.authUser,
-  bookmarkController.toggleMessageBookmark
+  (req, res) => {
+    // Log deprecation warning
+    console.warn(`Deprecated endpoint used: /messages/${req.params.messageId}/bookmark`);
+    return res.status(400).json({ 
+      message: "This endpoint requires a project ID. Please use /projects/:projectId/messages/:messageId/bookmark instead" 
+    });
+  }
 );
 
 export default router;

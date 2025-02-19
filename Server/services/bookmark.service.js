@@ -89,13 +89,37 @@ export const toggleMessageBookmark = async (userId, projectId, messageId) => {
 
   if (existingBookmark) {
     await Bookmark.deleteOne({ _id: existingBookmark._id });
-    return { isBookmarked: false, message: "Message bookmark removed" };
+    return false; // Indicates bookmark was removed
   } else {
     await Bookmark.create({ userId, projectId, messageId });
-    return { isBookmarked: true, message: "Message bookmarked" };
+    return true; // Indicates bookmark was added
   }
 };
 
+export const removeMessageBookmark = async (userId, projectId, messageId) => {
+  if (!userId || !projectId || !messageId) {
+    throw new Error("User ID, Project ID, and Message ID are required");
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(messageId)) {
+    throw new Error("Invalid Message ID");
+  }
+
+  const bookmark = await Bookmark.findOne({ 
+    userId, 
+    projectId, 
+    messageId 
+  });
+
+  if (!bookmark) {
+    throw new Error("Bookmark not found"); 
+  }
+
+  await Bookmark.deleteOne({ _id: bookmark._id });
+  return true;
+};
+
+// Legacy function - maintained for backward compatibility
 export const deleteMessageBookmark = async (userId, messageId) => {
   if (!userId || !messageId) {
     throw new Error("User ID and Message ID are required");
