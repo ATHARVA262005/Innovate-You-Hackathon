@@ -860,7 +860,6 @@ const Project = () => {
             </div>
           </div>
         </div>
-
         <div className="p-4 border-t border-gray-700 bg-gray-900 shrink-0 z-20">
           <div className="flex space-x-2">
             <input
@@ -894,7 +893,6 @@ const Project = () => {
               : "Direct conversation with the AI assistant"}
           </div>
         </div>
-
         <div className="lg:hidden border-t border-gray-700 bg-gray-900 shrink-0 pb-safe">
           <div className="p-3">
             <h2 className="text-lg font-semibold mb-2">Generated Files</h2>
