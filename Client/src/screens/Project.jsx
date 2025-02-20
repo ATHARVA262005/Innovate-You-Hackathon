@@ -456,14 +456,12 @@ const Project = () => {
     </div>
   );
 
+  // Inside the renderMessage function, update to display who sent the AI-targeted message
+  // Improved renderMessage function with better prompt indicator and icon placement
   const renderMessage = (msg, index) => {
-    console.log("Rendering message:", msg);
-
     const isAiMessage =
       typeof msg.message === "string" &&
       msg.message.toLowerCase().includes("@ai");
-
-    console.log("Message object:", msg); // Debugging log
 
     return (
       <div
@@ -478,22 +476,36 @@ const Project = () => {
           msg.isSystem ? "text-center mx-auto" : ""
         }`}
       >
-        <div className="font-semibold text-white flex items-center justify-between">
-          <span>{msg.sender}</span>
-          {msg.hasFiles && (
-            <button
-              onClick={() => handleFileIconClick(msg.files)}
-              className="ml-2 p-1 hover:bg-purple-600 rounded transition-colors"
-              title="Show generated files"
-            >
-              <IoCodeOutline size={20} />
-            </button>
-          )}
-          {isAiMessage && msg._id && (
-            <button
-              onClick={() => toggleMessageBookmark(msg._id)}
-              className={`
-              ml-2 p-2 rounded-lg
+        {/* Message header with sender info */}
+        <div className="font-semibold text-white flex items-center justify-between mb-1">
+          <div className="flex flex-col">
+            <span>{msg.sender}</span>
+
+            {/* Add subtle AI prompt indicator without email redundancy */}
+            {isAiMessage && !msg.isAI && (
+              <span className="text-xs text-purple-300 opacity-75">
+                AI prompt
+              </span>
+            )}
+          </div>
+
+          {/* Action buttons container */}
+          <div className="flex items-center">
+            {msg.hasFiles && (
+              <button
+                onClick={() => handleFileIconClick(msg.files)}
+                className="p-1 hover:bg-purple-600 rounded transition-colors mr-2"
+                title="Show generated files"
+              >
+                <IoCodeOutline size={18} />
+              </button>
+            )}
+
+            {isAiMessage && msg._id && (
+              <button
+                onClick={() => toggleMessageBookmark(msg._id)}
+                className={`
+              p-1.5 rounded-lg
               transform transition-all duration-300
               hover:scale-110
               ${
@@ -502,11 +514,11 @@ const Project = () => {
                   : "bg-gray-800 hover:bg-gray-700"
               }
             `}
-              title="Bookmark Message"
-            >
-              <BsBookmarkStar
-                size={18}
-                className={`
+                title="Bookmark Message"
+              >
+                <BsBookmarkStar
+                  size={16}
+                  className={`
                 transition-all duration-300
                 ${
                   msg.isBookmarked
@@ -514,16 +526,28 @@ const Project = () => {
                     : "text-gray-400 hover:text-blue-400"
                 }
               `}
-              />
-            </button>
-          )}
+                />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Message content */}
         <div
-          className={`mt-1 ${
+          className={`${
             msg.isCommand ? "font-mono text-sm whitespace-pre" : ""
           }`}
         >
-          {msg.message}
+          {/* Format AI prompts */}
+          {isAiMessage && !msg.isAI ? (
+            <div className="bg-purple-900/30 p-2 rounded-md border-l-2 border-purple-500">
+              {typeof msg.message === "string"
+                ? msg.message.replace(/^@ai\s*/i, "")
+                : msg.message}
+            </div>
+          ) : (
+            msg.message
+          )}
         </div>
       </div>
     );
@@ -804,7 +828,12 @@ const Project = () => {
               {messages
                 .filter(
                   (msg) =>
+                    // Exclude AI responses
                     !msg.isAI &&
+                    // Exclude AI command outputs (build steps, run commands)
+                    !msg.isBuildSteps &&
+                    !msg.isRunCommands &&
+                    // Exclude messages with @ai prefix
                     (typeof msg.message !== "string" ||
                       !msg.message.toLowerCase().includes("@ai"))
                 )
